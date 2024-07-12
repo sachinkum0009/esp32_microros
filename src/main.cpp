@@ -80,32 +80,16 @@ void timer_callback(rcl_timer_t * timer, int64_t last_call_time) {
     /**
      * IMU Sensor Values
      */
-    if (!dmpReady) return;
-    if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) { // Get the Latest packet 
+    if (dmpReady && mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) { // Get the Latest packet 
 
         // display quaternion values in easy matrix form: w x y z
         mpu.dmpGetQuaternion(&q, fifoBuffer);
-        // Serial.print("quat\t");
-        // Serial.print(q.w);
-        // Serial.print("\t");
-        // Serial.print(q.x);
-        // Serial.print("\t");
-        // Serial.print(q.y);
-        // Serial.print("\t");
-        // Serial.println(q.z);
-
         mpu.dmpGetGravity(&gravity, &q);
 
         // display initial world-frame acceleration, adjusted to remove gravity
         // and rotated based on known orientation from quaternion
         mpu.dmpGetAccel(&aa, fifoBuffer);
         mpu.dmpConvertToWorldFrame(&aaWorld, &aa, &q);
-        // Serial.print("aworld\t");
-        // Serial.print(aaWorld.x * mpu.get_acce_resolution() * EARTH_GRAVITY_MS2);
-        // Serial.print("\t");
-        // Serial.print(aaWorld.y * mpu.get_acce_resolution() * EARTH_GRAVITY_MS2);
-        // Serial.print("\t");
-        // Serial.println(aaWorld.z * mpu.get_acce_resolution() * EARTH_GRAVITY_MS2);
 
         // display initial world-frame acceleration, adjusted to remove gravity
         // and rotated based on known orientation from quaternion
@@ -117,16 +101,9 @@ void timer_callback(rcl_timer_t * timer, int64_t last_call_time) {
         // Serial.print(ggWorld.y * mpu.get_gyro_resolution() * DEG_TO_RAD);
         // Serial.print("\t");
         // Serial.println(ggWorld.z * mpu.get_gyro_resolution() * DEG_TO_RAD);
+    
 
-        mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
-        // Serial.print("ypr\t");
-        // Serial.print(ypr[0] * RAD_TO_DEG);
-        // Serial.print("\t");
-        // Serial.print(ypr[1] * RAD_TO_DEG);
-        // Serial.print("\t");
-        // Serial.println(ypr[2] * RAD_TO_DEG);
-        
-        // Serial.println();
+        // mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
 
     }
     imu_msg.header.stamp.sec = (int32_t)(rmw_uros_epoch_nanos() / NANO_SECS);
@@ -136,9 +113,14 @@ void timer_callback(rcl_timer_t * timer, int64_t last_call_time) {
     imu_msg.orientation.z = q.z;
     imu_msg.orientation.w = q.w;
 
+    imu_msg.angular_velocity.x = ggWorld.x;
+    imu_msg.angular_velocity.y = ggWorld.y;
+    imu_msg.angular_velocity.z = ggWorld.z;
+
     imu_msg.linear_acceleration.x = aaWorld.x;
     imu_msg.linear_acceleration.y = aaWorld.y;
     imu_msg.linear_acceleration.z = aaWorld.z;
+
 
     RCSOFTCHECK(rcl_publish(&publisher, &msg, NULL));
     RCSOFTCHECK(rcl_publish(&imu_publisher, &imu_msg, NULL));
@@ -157,13 +139,20 @@ void subscription_callback(const void * msgin)
 
 void initialize_ros_msgs()
 {
-    // imu_msg.header.frame_id.capacity = 100; 
-    // imu_msg.header.frame_id.size = 100;
-    // imu_msg.header.frame_id.data = "imu_link".to_char(); // (char *) malloc(100 * sizeof(char)) ;
-    // imu_msg.header.frame_id = "imu_link";
     char* frame_id = new char[strlen("imu_link") + 1];
     strcpy(frame_id, "imu_link");
     imu_msg.header.frame_id.data = frame_id;
+
+    float accel_cov_ = 0.00001;
+    float gyro_cov_ = 0.00001;
+
+    imu_msg.angular_velocity_covariance[0] = gyro_cov_;
+    imu_msg.angular_velocity_covariance[4] = gyro_cov_;
+    imu_msg.angular_velocity_covariance[8] = gyro_cov_;
+    
+    imu_msg.linear_acceleration_covariance[0] = accel_cov_;
+    imu_msg.linear_acceleration_covariance[4] = accel_cov_;
+    imu_msg.linear_acceleration_covariance[8] = accel_cov_;
 }
 
 void setup() {
