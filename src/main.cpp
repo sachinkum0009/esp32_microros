@@ -7,13 +7,23 @@
 #include <rclc/executor.h>
 
 #include <std_msgs/msg/int32.h>
+#include <sensor_msgs/msg/imu.h>
+#include <std_msgs/msg/int32_multi_array.h>
+#include <geometry_msgs/msg/twist.h>
+
+
 
 // #if !defined(MICRO_ROS_TRANSPORT_ARDUINO_SERIAL)
 // #error This example is only avaliable for Arduino framework with serial transport.
 // #endif
 
-rcl_publisher_t publisher;
+rcl_publisher_t publisher, imu_publisher, encoder_publisher;
+rcl_subscription_t twist_subscriber;
 std_msgs__msg__Int32 msg;
+
+sensor_msgs__msg__Imu imu_msg;
+geometry_msgs__msg__Twist twist_msg;
+std_msgs__msg__Int32MultiArray encoder_msg;
 
 rclc_executor_t executor;
 rclc_support_t support;
@@ -35,22 +45,32 @@ void timer_callback(rcl_timer_t * timer, int64_t last_call_time) {
   RCLC_UNUSED(last_call_time);
   if (timer != NULL) {
     RCSOFTCHECK(rcl_publish(&publisher, &msg, NULL));
+    RCSOFTCHECK(rcl_publish(&imu_publisher, &imu_msg, NULL));
+    RCSOFTCHECK(rcl_publish(&encoder_publisher, &encoder_msg, NULL));
     msg.data++;
   }
 }
 
+
+// subscription callback
+void subscription_callback(const void * msgin)
+{
+        const geometry_msgs__msg__Twist * msg = (const geometry_msgs__msg__Twist *)msgin;
+        printf("Received linear x: %f, angular z: %f \n",  (float)  msg->linear.x, (float) msg->angular.z);
+}
+
 void setup() {
   // Configure serial transport
-  // Serial.begin(115200);
-  // set_microros_serial_transports(Serial);
+  Serial.begin(115200);
+  set_microros_serial_transports(Serial);
   // 192.168.117.185
   // 172.22.72.27
-  IPAddress agent_ip(172, 22, 72, 27);
-  size_t agent_port = 8888;
-  char ssid[] = "Xiaomi 13 Lite";
-  char psk[]= "1234567890";
+//   IPAddress agent_ip(172, 22, 72, 27);
+//   size_t agent_port = 8888;
+//   char ssid[] = "Xiaomi 13 Lite";
+//   char psk[]= "1234567890";
 
-  set_microros_wifi_transports(ssid, psk, agent_ip, agent_port);
+//   set_microros_wifi_transports(ssid, psk, agent_ip, agent_port);
 
 
   delay(2000);
@@ -70,8 +90,29 @@ void setup() {
     ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
     "micro_ros_platformio_node_publisher"));
 
+  // create imu publisher
+  RCCHECK(rclc_publisher_init_default(
+    &imu_publisher,
+    &node,
+    ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Imu),
+    "imu"));
+
+  // create encoder publisher
+  RCCHECK(rclc_publisher_init_default(
+    &encoder_publisher,
+    &node,
+    ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32MultiArray),
+    "encoders"));
+
+    // Create subscriber.
+    RCCHECK(rclc_subscription_init_default(
+                &twist_subscriber,
+                &node,
+                ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist),
+                "cmd_vel"));
+
   // create timer,
-  const unsigned int timer_timeout = 1000;
+  const unsigned int timer_timeout = 10;
   RCCHECK(rclc_timer_init_default(
     &timer,
     &support,
@@ -79,13 +120,15 @@ void setup() {
     timer_callback));
 
   // create executor
-  RCCHECK(rclc_executor_init(&executor, &support.context, 1, &allocator));
+  RCCHECK(rclc_executor_init(&executor, &support.context, 2, &allocator));
   RCCHECK(rclc_executor_add_timer(&executor, &timer));
+  // add subscriber to executor
+RCCHECK(rclc_executor_add_subscription(&executor, &twist_subscriber, &twist_msg, &subscription_callback, ON_NEW_DATA));
 
   msg.data = 0;
 }
 
 void loop() {
-  delay(100);
-  RCSOFTCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100)));
+  delay(10);
+  RCSOFTCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(10)));
 }
