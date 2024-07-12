@@ -71,6 +71,18 @@ int dutycycle = 200;
 
 
 
+/**
+ * Encoders
+ * 
+*/
+
+#define LEFT_ENCODER_PIN1 25
+#define LEFT_ENCODER_PIN2 33
+// #define RIGHT_ENCODER_PIN1 1
+// #define RIGHT_ENCODER_PIN2 1
+
+int32_t left_encoder_value, right_encoder_value;
+
 
 
 rcl_publisher_t publisher, imu_publisher, encoder_publisher;
@@ -144,11 +156,14 @@ void timer_callback(rcl_timer_t * timer, int64_t last_call_time) {
     imu_msg.linear_acceleration.y = aaWorld.y;
     imu_msg.linear_acceleration.z = aaWorld.z;
 
+    // encoder_msg.data.data[0] += 1;
+    // encoder_msg.data.data[1] += 1;
+    encoder_msg.data.data[0] = left_encoder_value;
+
 
     RCSOFTCHECK(rcl_publish(&publisher, &msg, NULL));
     RCSOFTCHECK(rcl_publish(&imu_publisher, &imu_msg, NULL));
     RCSOFTCHECK(rcl_publish(&encoder_publisher, &encoder_msg, NULL));
-    msg.data++;
   }
 }
 
@@ -215,6 +230,64 @@ void initialize_ros_msgs()
     imu_msg.linear_acceleration_covariance[0] = accel_cov_;
     imu_msg.linear_acceleration_covariance[4] = accel_cov_;
     imu_msg.linear_acceleration_covariance[8] = accel_cov_;
+
+    left_encoder_value = 0;
+    right_encoder_value = 0;
+    int32_t data[] = {left_encoder_value, right_encoder_value}; 
+    encoder_msg.data.capacity = 2;
+    encoder_msg.data.size = 2;
+    encoder_msg.data.data = data;
+
+}
+
+
+static inline void doEncoderA(){  
+
+  // look for a low-to-high on channel A
+  if (digitalRead(LEFT_ENCODER_PIN1) == HIGH) { 
+    // check channel B to see which way encoder is turning
+    if (digitalRead(LEFT_ENCODER_PIN2) == LOW) {  
+      left_encoder_value = left_encoder_value + 1;         // CW
+    } 
+    else {
+      left_encoder_value = left_encoder_value - 1;         // CCW
+    }
+  }
+  else   // must be a high-to-low edge on channel A                                       
+  { 
+    // check channel B to see which way encoder is turning  
+    if (digitalRead(LEFT_ENCODER_PIN2) == HIGH) {   
+      left_encoder_value = left_encoder_value + 1;          // CW
+    } 
+    else {
+      left_encoder_value = left_encoder_value - 1;          // CCW
+    }
+  }
+ 
+}
+
+
+static inline void doEncoderB(){  
+  // look for a low-to-high on channel B
+  if (digitalRead(LEFT_ENCODER_PIN2) == HIGH) {   
+   // check channel A to see which way encoder is turning
+    if (digitalRead(LEFT_ENCODER_PIN1) == HIGH) {  
+      left_encoder_value = left_encoder_value + 1;         // CW
+    } 
+    else {
+      left_encoder_value = left_encoder_value - 1;         // CCW
+    }
+  }
+  // Look for a high-to-low on channel B
+  else { 
+    // check channel B to see which way encoder is turning  
+    if (digitalRead(LEFT_ENCODER_PIN1) == LOW) {   
+      left_encoder_value = left_encoder_value + 1;          // CW
+    } 
+    else {
+      left_encoder_value = left_encoder_value - 1;          // CCW
+    }
+  }
 }
 
 void setup() {
@@ -270,6 +343,21 @@ void setup() {
     // attch te channel to GPIO to be controlled
     ledcAttachPin(LEFT_ENABLE_PIN, pwmChannelLeft);
     ledcAttachPin(RIGHT_ENABLE_PIN, pwmChannelRight);
+
+
+
+    /**
+     * encoders 
+    */
+
+   pinMode(LEFT_ENCODER_PIN1, INPUT_PULLUP);
+   pinMode(LEFT_ENCODER_PIN2, INPUT_PULLUP);
+  //  pinMode(RIGHT_ENCODER_PIN1, INPUT_PULLUP);
+  //  pinMode(RIGHT_ENCODER_PIN2, INPUT_PULLUP);
+
+   attachInterrupt(digitalPinToInterrupt(LEFT_ENCODER_PIN1), doEncoderA, CHANGE);
+   attachInterrupt(digitalPinToInterrupt(LEFT_ENCODER_PIN2), doEncoderB, CHANGE);
+
 
   // Configure serial transport
   Serial.begin(115200);
