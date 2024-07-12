@@ -58,7 +58,7 @@ float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gra
 #define LEFT_MOTOR_PIN2 27
 #define RIGHT_MOTOR_PIN1 28
 #define RIGHT_MOTOR_PIN2 29
-#define LEFT_ENABLE_PIN 25
+#define LEFT_ENABLE_PIN 14
 #define RIGHT_ENABLE_PIN 15
 
 
@@ -167,35 +167,35 @@ void subscription_callback(const void * msgin)
             // Move forward
             digitalWrite(LEFT_MOTOR_PIN1, HIGH);
             digitalWrite(LEFT_MOTOR_PIN2, LOW);
-            // digitalWrite(RIGHT_MOTOR_PIN1, HIGH);
-            // digitalWrite(RIGHT_MOTOR_PIN2, LOW);
+            digitalWrite(RIGHT_MOTOR_PIN1, HIGH);
+            digitalWrite(RIGHT_MOTOR_PIN2, LOW);
         } else if (speed < 0) {
             // Move backward
             digitalWrite(LEFT_MOTOR_PIN1, LOW);
             digitalWrite(LEFT_MOTOR_PIN2, HIGH);
-            // digitalWrite(RIGHT_MOTOR_PIN1, LOW);
-            // digitalWrite(RIGHT_MOTOR_PIN2, HIGH);
+            digitalWrite(RIGHT_MOTOR_PIN1, LOW);
+            digitalWrite(RIGHT_MOTOR_PIN2, HIGH);
         } else {
             // Stop
             digitalWrite(LEFT_MOTOR_PIN1, LOW);
             digitalWrite(LEFT_MOTOR_PIN2, LOW);
-            // digitalWrite(RIGHT_MOTOR_PIN1, LOW);
-            // digitalWrite(RIGHT_MOTOR_PIN2, LOW);
+            digitalWrite(RIGHT_MOTOR_PIN1, LOW);
+            digitalWrite(RIGHT_MOTOR_PIN2, LOW);
         }
         
         // Apply turn
         if (turn > 0) {
             // Turn right
             ledcWrite(pwmChannelLeft, abs(speed) - turn);
-            // ledcWrite(pwmChannelLeft, abs(speed) + turn);
+            ledcWrite(pwmChannelLeft, abs(speed) + turn);
         } else if (turn < 0) {
             // Turn left
             ledcWrite(pwmChannelLeft, abs(speed) + abs(turn));
-            // ledcWrite(pwmChannelRight, abs(speed) - abs(turn));
+            ledcWrite(pwmChannelRight, abs(speed) - abs(turn));
         } else {
             // No turn, same speed for both motors
             ledcWrite(pwmChannelLeft, abs(speed));
-            // ledcWrite(pwmChannelRight, abs(speed));
+            ledcWrite(pwmChannelRight, abs(speed));
         }
 }
 
@@ -258,18 +258,18 @@ void setup() {
     // Motor Driver
     pinMode(LEFT_MOTOR_PIN1, OUTPUT);
     pinMode(LEFT_MOTOR_PIN2, OUTPUT);
-    // pinMode(RIGHT_MOTOR_PIN1, OUTPUT);
-    // pinMode(RIGHT_MOTOR_PIN2, OUTPUT);
+    pinMode(RIGHT_MOTOR_PIN1, OUTPUT);
+    pinMode(RIGHT_MOTOR_PIN2, OUTPUT);
     pinMode(LEFT_ENABLE_PIN, OUTPUT);
-    // pinMode(RIGHT_ENABLE_PIN, OUTPUT);
+    pinMode(RIGHT_ENABLE_PIN, OUTPUT);
 
     // configure ledc pwm 
     ledcSetup(pwmChannelLeft, frequencies, resolution);
-    // ledcSetup(pwmChannelRight, frequencies, resolution);
+    ledcSetup(pwmChannelRight, frequencies, resolution);
 
     // attch te channel to GPIO to be controlled
     ledcAttachPin(LEFT_ENABLE_PIN, pwmChannelLeft);
-    // ledcAttachPin(RIGHT_ENABLE_PIN, pwmChannelRight);
+    ledcAttachPin(RIGHT_ENABLE_PIN, pwmChannelRight);
 
   // Configure serial transport
   Serial.begin(115200);
