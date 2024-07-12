@@ -50,6 +50,29 @@ float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gra
 // #error This example is only avaliable for Arduino framework with serial transport.
 // #endif
 
+
+/**
+ * motor pins code
+*/
+#define LEFT_MOTOR_PIN1 26
+#define LEFT_MOTOR_PIN2 27
+#define RIGHT_MOTOR_PIN1 28
+#define RIGHT_MOTOR_PIN2 29
+#define LEFT_ENABLE_PIN 25
+#define RIGHT_ENABLE_PIN 15
+
+
+// Setting PWM properties
+const int frequencies = 30000;
+const int pwmChannelLeft = 0;
+const int pwmChannelRight = 1;
+const int resolution = 8;
+int dutycycle = 200;
+
+
+
+
+
 rcl_publisher_t publisher, imu_publisher, encoder_publisher;
 rcl_subscription_t twist_subscriber;
 std_msgs__msg__Int32 msg;
@@ -134,7 +157,46 @@ void timer_callback(rcl_timer_t * timer, int64_t last_call_time) {
 void subscription_callback(const void * msgin)
 {
         const geometry_msgs__msg__Twist * msg = (const geometry_msgs__msg__Twist *)msgin;
-        printf("Received linear x: %f, angular z: %f \n",  (float)  msg->linear.x, (float) msg->angular.z);
+        // printf("Received linear x: %f, angular z: %f \n",  (float)  msg->linear.x, (float) msg->angular.z);
+        // Map linear.x to motor speed and angular.z to motor direction
+        int speed = map((int)(msg->linear.x * 100), -100, 100, -255, 255);
+        int turn = map((int)(msg->angular.z * 100), -100, 100, -255, 255);
+
+        // Determine motor control based on received messages
+        if (speed > 0) {
+            // Move forward
+            digitalWrite(LEFT_MOTOR_PIN1, HIGH);
+            digitalWrite(LEFT_MOTOR_PIN2, LOW);
+            // digitalWrite(RIGHT_MOTOR_PIN1, HIGH);
+            // digitalWrite(RIGHT_MOTOR_PIN2, LOW);
+        } else if (speed < 0) {
+            // Move backward
+            digitalWrite(LEFT_MOTOR_PIN1, LOW);
+            digitalWrite(LEFT_MOTOR_PIN2, HIGH);
+            // digitalWrite(RIGHT_MOTOR_PIN1, LOW);
+            // digitalWrite(RIGHT_MOTOR_PIN2, HIGH);
+        } else {
+            // Stop
+            digitalWrite(LEFT_MOTOR_PIN1, LOW);
+            digitalWrite(LEFT_MOTOR_PIN2, LOW);
+            // digitalWrite(RIGHT_MOTOR_PIN1, LOW);
+            // digitalWrite(RIGHT_MOTOR_PIN2, LOW);
+        }
+        
+        // Apply turn
+        if (turn > 0) {
+            // Turn right
+            ledcWrite(pwmChannelLeft, abs(speed) - turn);
+            // ledcWrite(pwmChannelLeft, abs(speed) + turn);
+        } else if (turn < 0) {
+            // Turn left
+            ledcWrite(pwmChannelLeft, abs(speed) + abs(turn));
+            // ledcWrite(pwmChannelRight, abs(speed) - abs(turn));
+        } else {
+            // No turn, same speed for both motors
+            ledcWrite(pwmChannelLeft, abs(speed));
+            // ledcWrite(pwmChannelRight, abs(speed));
+        }
 }
 
 void initialize_ros_msgs()
@@ -190,6 +252,24 @@ void setup() {
         dmpReady = true;
         packetSize = mpu.dmpGetFIFOPacketSize();
     }
+
+
+
+    // Motor Driver
+    pinMode(LEFT_MOTOR_PIN1, OUTPUT);
+    pinMode(LEFT_MOTOR_PIN2, OUTPUT);
+    // pinMode(RIGHT_MOTOR_PIN1, OUTPUT);
+    // pinMode(RIGHT_MOTOR_PIN2, OUTPUT);
+    pinMode(LEFT_ENABLE_PIN, OUTPUT);
+    // pinMode(RIGHT_ENABLE_PIN, OUTPUT);
+
+    // configure ledc pwm 
+    ledcSetup(pwmChannelLeft, frequencies, resolution);
+    // ledcSetup(pwmChannelRight, frequencies, resolution);
+
+    // attch te channel to GPIO to be controlled
+    ledcAttachPin(LEFT_ENABLE_PIN, pwmChannelLeft);
+    // ledcAttachPin(RIGHT_ENABLE_PIN, pwmChannelRight);
 
   // Configure serial transport
   Serial.begin(115200);
