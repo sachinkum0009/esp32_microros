@@ -54,20 +54,23 @@ float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gra
 /**
  * motor pins code
 */
-#define LEFT_MOTOR_PIN1 26
-#define LEFT_MOTOR_PIN2 27
-#define RIGHT_MOTOR_PIN1 28
-#define RIGHT_MOTOR_PIN2 29
-#define LEFT_ENABLE_PIN 14
-#define RIGHT_ENABLE_PIN 15
+#define LEFT_MOTOR_PIN1 18
+#define LEFT_MOTOR_PIN2 17
+#define RIGHT_MOTOR_PIN1 5
+#define RIGHT_MOTOR_PIN2 19
+// #define LEFT_ENABLE_PIN 14
+// #define RIGHT_ENABLE_PIN 15
+
+#define STBY_PIN 22
+#define MODE_PIN 23
 
 
 // Setting PWM properties
-const int frequencies = 30000;
-const int pwmChannelLeft = 0;
-const int pwmChannelRight = 1;
-const int resolution = 8;
-int dutycycle = 200;
+// const int frequencies = 30000;
+// const int pwmChannelLeft = 0;
+// const int pwmChannelRight = 1;
+// const int resolution = 8;
+// int dutycycle = 200;
 
 
 
@@ -76,10 +79,10 @@ int dutycycle = 200;
  * 
 */
 
-#define LEFT_ENCODER_PIN1 25
-#define LEFT_ENCODER_PIN2 33
-// #define RIGHT_ENCODER_PIN1 1
-// #define RIGHT_ENCODER_PIN2 1
+#define LEFT_ENCODER_PIN1 13
+#define LEFT_ENCODER_PIN2 15
+#define RIGHT_ENCODER_PIN1 34
+#define RIGHT_ENCODER_PIN2 35
 
 int32_t left_encoder_value, right_encoder_value;
 
@@ -180,37 +183,31 @@ void subscription_callback(const void * msgin)
         // Determine motor control based on received messages
         if (speed > 0) {
             // Move forward
-            digitalWrite(LEFT_MOTOR_PIN1, HIGH);
             digitalWrite(LEFT_MOTOR_PIN2, LOW);
-            digitalWrite(RIGHT_MOTOR_PIN1, HIGH);
             digitalWrite(RIGHT_MOTOR_PIN2, LOW);
         } else if (speed < 0) {
             // Move backward
-            digitalWrite(LEFT_MOTOR_PIN1, LOW);
             digitalWrite(LEFT_MOTOR_PIN2, HIGH);
-            digitalWrite(RIGHT_MOTOR_PIN1, LOW);
             digitalWrite(RIGHT_MOTOR_PIN2, HIGH);
         } else {
             // Stop
-            digitalWrite(LEFT_MOTOR_PIN1, LOW);
             digitalWrite(LEFT_MOTOR_PIN2, LOW);
-            digitalWrite(RIGHT_MOTOR_PIN1, LOW);
             digitalWrite(RIGHT_MOTOR_PIN2, LOW);
         }
         
         // Apply turn
         if (turn > 0) {
             // Turn right
-            ledcWrite(pwmChannelLeft, abs(speed) - turn);
-            ledcWrite(pwmChannelLeft, abs(speed) + turn);
+            analogWrite(LEFT_MOTOR_PIN1, abs(speed) - turn);
+            analogWrite(RIGHT_MOTOR_PIN1, abs(speed) + turn);
         } else if (turn < 0) {
             // Turn left
-            ledcWrite(pwmChannelLeft, abs(speed) + abs(turn));
-            ledcWrite(pwmChannelRight, abs(speed) - abs(turn));
+            analogWrite(LEFT_MOTOR_PIN1, abs(speed) + abs(turn));
+            analogWrite(RIGHT_MOTOR_PIN1, abs(speed) - abs(turn));
         } else {
             // No turn, same speed for both motors
-            ledcWrite(pwmChannelLeft, abs(speed));
-            ledcWrite(pwmChannelRight, abs(speed));
+            analogWrite(LEFT_MOTOR_PIN1, abs(speed));
+            analogWrite(RIGHT_MOTOR_PIN1, abs(speed));
         }
 }
 
@@ -290,11 +287,67 @@ static inline void doEncoderB(){
   }
 }
 
+static inline void doEncoderC(){  
+
+  // look for a low-to-high on channel A
+  if (digitalRead(RIGHT_ENCODER_PIN1) == HIGH) { 
+    // check channel B to see which way encoder is turning
+    if (digitalRead(RIGHT_ENCODER_PIN2) == LOW) {  
+      right_encoder_value = right_encoder_value + 1;         // CW
+    } 
+    else {
+      right_encoder_value = right_encoder_value - 1;         // CCW
+    }
+  }
+  else   // must be a high-to-low edge on channel A                                       
+  { 
+    // check channel B to see which way encoder is turning  
+    if (digitalRead(RIGHT_ENCODER_PIN2) == HIGH) {   
+      right_encoder_value = right_encoder_value + 1;          // CW
+    } 
+    else {
+      right_encoder_value = right_encoder_value - 1;          // CCW
+    }
+  }
+ 
+}
+
+static inline void doEncoderD(){  
+  // look for a low-to-high on channel B
+  if (digitalRead(RIGHT_ENCODER_PIN2) == HIGH) {   
+   // check channel A to see which way encoder is turning
+    if (digitalRead(RIGHT_ENCODER_PIN1) == HIGH) {  
+      right_encoder_value = right_encoder_value + 1;         // CW
+    } 
+    else {
+      right_encoder_value = right_encoder_value - 1;         // CCW
+    }
+  }
+  // Look for a high-to-low on channel B
+  else { 
+    // check channel B to see which way encoder is turning  
+    if (digitalRead(RIGHT_ENCODER_PIN1) == LOW) {   
+      right_encoder_value = right_encoder_value + 1;          // CW
+    } 
+    else {
+      right_encoder_value = right_encoder_value - 1;          // CCW
+    }
+  }
+}
+
 void setup() {
+
+  pinMode(MODE_PIN, OUTPUT);
+  pinMode(STBY_PIN, OUTPUT);
+
+  digitalWrite(MODE_PIN, HIGH); // Set MODE pin to L (closed) for IN input mode, H (opened) Phase input mode
+  delay(10);
+  digitalWrite(STBY_PIN, HIGH); // HIGH to enable the motor driver
 
 
     #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
-        Wire.begin();
+        // Wire.begin();
+        Wire.begin(27, 26);
         Wire.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
     #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
         Fastwire::setup(400, true);
@@ -333,16 +386,10 @@ void setup() {
     pinMode(LEFT_MOTOR_PIN2, OUTPUT);
     pinMode(RIGHT_MOTOR_PIN1, OUTPUT);
     pinMode(RIGHT_MOTOR_PIN2, OUTPUT);
-    pinMode(LEFT_ENABLE_PIN, OUTPUT);
-    pinMode(RIGHT_ENABLE_PIN, OUTPUT);
 
-    // configure ledc pwm 
-    ledcSetup(pwmChannelLeft, frequencies, resolution);
-    ledcSetup(pwmChannelRight, frequencies, resolution);
+    digitalWrite(LEFT_MOTOR_PIN2, LOW);
+    digitalWrite(RIGHT_MOTOR_PIN2, LOW);
 
-    // attch te channel to GPIO to be controlled
-    ledcAttachPin(LEFT_ENABLE_PIN, pwmChannelLeft);
-    ledcAttachPin(RIGHT_ENABLE_PIN, pwmChannelRight);
 
 
 
@@ -352,11 +399,13 @@ void setup() {
 
    pinMode(LEFT_ENCODER_PIN1, INPUT_PULLUP);
    pinMode(LEFT_ENCODER_PIN2, INPUT_PULLUP);
-  //  pinMode(RIGHT_ENCODER_PIN1, INPUT_PULLUP);
-  //  pinMode(RIGHT_ENCODER_PIN2, INPUT_PULLUP);
+   pinMode(RIGHT_ENCODER_PIN1, INPUT_PULLUP);
+   pinMode(RIGHT_ENCODER_PIN2, INPUT_PULLUP);
 
    attachInterrupt(digitalPinToInterrupt(LEFT_ENCODER_PIN1), doEncoderA, CHANGE);
    attachInterrupt(digitalPinToInterrupt(LEFT_ENCODER_PIN2), doEncoderB, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(RIGHT_ENCODER_PIN1), doEncoderC, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(RIGHT_ENCODER_PIN2), doEncoderD, CHANGE);
 
 
   // Configure serial transport
@@ -423,17 +472,12 @@ void setup() {
   RCCHECK(rclc_executor_init(&executor, &support.context, 2, &allocator));
   RCCHECK(rclc_executor_add_timer(&executor, &timer));
   // add subscriber to executor
-RCCHECK(rclc_executor_add_subscription(&executor, &twist_subscriber, &twist_msg, &subscription_callback, ON_NEW_DATA));
+  RCCHECK(rclc_executor_add_subscription(&executor, &twist_subscriber, &twist_msg, &subscription_callback, ON_NEW_DATA));
 
   msg.data = 0;
 }
 
 void loop() {
-
-
-
-    
-
   delay(10);
   RCSOFTCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(10)));
 }
