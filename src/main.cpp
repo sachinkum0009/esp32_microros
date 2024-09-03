@@ -13,7 +13,6 @@
 
 #define NANO_SECS 1000000000
 
-// #include <MPU6050.h>
 #include <I2Cdev.h>
 #include "MPU6050_6Axis_MotionApps20.h"
 
@@ -56,8 +55,6 @@ float ypr[3];        // [yaw, pitch, roll]   yaw/pitch/roll container and gravit
 #define LEFT_MOTOR_PIN2 17
 #define RIGHT_MOTOR_PIN1 5
 #define RIGHT_MOTOR_PIN2 19
-// #define LEFT_ENABLE_PIN 14
-// #define RIGHT_ENABLE_PIN 15
 
 #define STBY_PIN 22
 #define MODE_PIN 23
@@ -144,14 +141,6 @@ void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
       // and rotated based on known orientation from quaternion
       mpu.dmpGetGyro(&gg, fifoBuffer);
       mpu.dmpConvertToWorldFrame(&ggWorld, &gg, &q);
-      // Serial.print("ggWorld\t");
-      // Serial.print(ggWorld.x * mpu.get_gyro_resolution() * DEG_TO_RAD);
-      // Serial.print("\t");
-      // Serial.print(ggWorld.y * mpu.get_gyro_resolution() * DEG_TO_RAD);
-      // Serial.print("\t");
-      // Serial.println(ggWorld.z * mpu.get_gyro_resolution() * DEG_TO_RAD);
-
-      // mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
     }
     imu_msg.header.stamp.sec = (int32_t)(rmw_uros_epoch_nanos() / NANO_SECS);
     imu_msg.header.stamp.nanosec = (uint32_t)(rmw_uros_epoch_nanos() % NANO_SECS);
@@ -168,9 +157,8 @@ void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
     imu_msg.linear_acceleration.y = aaWorld.y;
     imu_msg.linear_acceleration.z = aaWorld.z;
 
-    // encoder_msg.data.data[0] += 1;
-    // encoder_msg.data.data[1] += 1;
     encoder_msg.data.data[0] = left_encoder_value;
+    encoder_msg.data.data[1] = right_encoder_value;
 
     RCSOFTCHECK(rcl_publish(&publisher, &msg, NULL));
     RCSOFTCHECK(rcl_publish(&imu_publisher, &imu_msg, NULL));
@@ -447,8 +435,8 @@ void setup()
   // 172.22.72.27
   //   IPAddress agent_ip(172, 22, 72, 27);
   //   size_t agent_port = 8888;
-  //   char ssid[] = "Xiaomi 13 Lite";
-  //   char psk[]= "1234567890";
+  //   char ssid[] = "SSID";
+  //   char psk[]= "Password";
 
   //   set_microros_wifi_transports(ssid, psk, agent_ip, agent_port);
 
