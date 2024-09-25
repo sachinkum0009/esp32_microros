@@ -2,6 +2,8 @@
 #include <micro_ros_platformio.h>
 // #include <micro_ros_transport.h>
 
+#include <mutex>
+
 #include <rcl/rcl.h>
 #include <rclc/rclc.h>
 #include <rclc/executor.h>
@@ -25,6 +27,18 @@ MPU6050 mpu;
 #define EARTH_GRAVITY_MS2 9.80665 // m/s2
 #define DEG_TO_RAD 0.017453292519943295769236907684886
 #define RAD_TO_DEG 57.295779513082320876798154814105
+
+#define WHEEL_RADIUS 0.23 // m
+#define WHEEL_SEPARATION 0.6 // m
+
+using std::mutex;
+
+// Motor Control
+float leftWheelSpeed = 0; // rad / s
+float rightWheelSpeed = 0; // rad / s
+int leftMotorPWM; // pulse width in microseconds (us)
+int rightMotorPWM; // pulse width in microseconds (us)
+float angularComponent;
 
 // MPU control/status vars
 bool dmpReady = false;  // set true if DMP init was successful
@@ -170,50 +184,37 @@ void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
 void subscription_callback(const void *msgin)
 {
   const geometry_msgs__msg__Twist *msg = (const geometry_msgs__msg__Twist *)msgin;
-  // printf("Received linear x: %f, angular z: %f \n",  (float)  msg->linear.x, (float) msg->angular.z);
-  // Map linear.x to motor speed and angular.z to motor direction
-  int speed = map((int)(msg->linear.x * 100), -100, 100, -255, 255);
-  int turn = map((int)(msg->angular.z * 100), -100, 100, -255, 255);
 
-  // Determine motor control based on received messages
-  if (speed > 0)
-  {
-    // Move forward
+  // Mathematical formula for the differential drive wheeled robot
+  // https://wiki.ros.org/diff_drive_controller
+
+  // wl = (linear_vel - base_width / 2 * omega) / radius of wheel
+  // wr = (linear_vel + base_width / 2 * omega) / radius of wheel
+
+  angularComponent = ((WHEEL_SEPARATION / 2) * msg->angular.z);
+
+  leftWheelSpeed = (msg->linear.x - angularComponent) / WHEEL_RADIUS;
+  rightWheelSpeed = (msg->linear.x + angularComponent)/ WHEEL_RADIUS;
+
+  leftMotorPWM = map((int)leftWheelSpeed, -250, 250, 100, 249);
+  rightMotorPWM = map((int)rightWheelSpeed, -250, 250, 100, 249);
+
+  if (leftWheelSpeed < 0){
     digitalWrite(LEFT_MOTOR_PIN2, LOW);
+  }
+  else {
+    digitalWrite(LEFT_MOTOR_PIN2, HIGH);
+  }
+
+  if (rightWheelSpeed < 0){
     digitalWrite(RIGHT_MOTOR_PIN2, LOW);
   }
-  else if (speed < 0)
-  {
-    // Move backward
-    digitalWrite(LEFT_MOTOR_PIN2, HIGH);
+  else {
     digitalWrite(RIGHT_MOTOR_PIN2, HIGH);
   }
-  else
-  {
-    // Stop
-    digitalWrite(LEFT_MOTOR_PIN2, LOW);
-    digitalWrite(RIGHT_MOTOR_PIN2, LOW);
-  }
 
-  // Apply turn
-  if (turn > 0)
-  {
-    // Turn right
-    analogWrite(LEFT_MOTOR_PIN1, abs(speed) - turn);
-    analogWrite(RIGHT_MOTOR_PIN1, abs(speed) + turn);
-  }
-  else if (turn < 0)
-  {
-    // Turn left
-    analogWrite(LEFT_MOTOR_PIN1, abs(speed) + abs(turn));
-    analogWrite(RIGHT_MOTOR_PIN1, abs(speed) - abs(turn));
-  }
-  else
-  {
-    // No turn, same speed for both motors
-    analogWrite(LEFT_MOTOR_PIN1, abs(speed));
-    analogWrite(RIGHT_MOTOR_PIN1, abs(speed));
-  }
+  analogWrite(LEFT_MOTOR_PIN1, leftMotorPWM);
+  analogWrite(RIGHT_MOTOR_PIN1, rightMotorPWM);
 }
 
 void initialize_ros_msgs()
