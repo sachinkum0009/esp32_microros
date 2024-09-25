@@ -28,8 +28,8 @@ MPU6050 mpu;
 #define DEG_TO_RAD 0.017453292519943295769236907684886
 #define RAD_TO_DEG 57.295779513082320876798154814105
 
-#define WHEEL_RADIUS 0.23 // m
-#define WHEEL_SEPARATION 0.6 // m
+#define WHEEL_RADIUS 0.035 // m
+#define WHEEL_SEPARATION_BY_2 0.5 // m
 
 using std::mutex;
 
@@ -142,40 +142,40 @@ void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
     if (dmpReady && mpu.dmpGetCurrentFIFOPacket(fifoBuffer))
     { // Get the Latest packet
 
-      // display quaternion values in easy matrix form: w x y z
-      mpu.dmpGetQuaternion(&q, fifoBuffer);
-      mpu.dmpGetGravity(&gravity, &q);
+    //   // display quaternion values in easy matrix form: w x y z
+    //   mpu.dmpGetQuaternion(&q, fifoBuffer);
+    //   mpu.dmpGetGravity(&gravity, &q);
 
-      // display initial world-frame acceleration, adjusted to remove gravity
-      // and rotated based on known orientation from quaternion
-      mpu.dmpGetAccel(&aa, fifoBuffer);
-      mpu.dmpConvertToWorldFrame(&aaWorld, &aa, &q);
+    //   // display initial world-frame acceleration, adjusted to remove gravity
+    //   // and rotated based on known orientation from quaternion
+    //   mpu.dmpGetAccel(&aa, fifoBuffer);
+    //   mpu.dmpConvertToWorldFrame(&aaWorld, &aa, &q);
 
-      // display initial world-frame acceleration, adjusted to remove gravity
-      // and rotated based on known orientation from quaternion
-      mpu.dmpGetGyro(&gg, fifoBuffer);
-      mpu.dmpConvertToWorldFrame(&ggWorld, &gg, &q);
+    //   // display initial world-frame acceleration, adjusted to remove gravity
+    //   // and rotated based on known orientation from quaternion
+    //   mpu.dmpGetGyro(&gg, fifoBuffer);
+    //   mpu.dmpConvertToWorldFrame(&ggWorld, &gg, &q);
     }
-    imu_msg.header.stamp.sec = (int32_t)(rmw_uros_epoch_nanos() / NANO_SECS);
-    imu_msg.header.stamp.nanosec = (uint32_t)(rmw_uros_epoch_nanos() % NANO_SECS);
-    imu_msg.orientation.x = q.x;
-    imu_msg.orientation.y = q.y;
-    imu_msg.orientation.z = q.z;
-    imu_msg.orientation.w = q.w;
+    // imu_msg.header.stamp.sec = (int32_t)(rmw_uros_epoch_nanos() / NANO_SECS);
+    // imu_msg.header.stamp.nanosec = (uint32_t)(rmw_uros_epoch_nanos() % NANO_SECS);
+    // imu_msg.orientation.x = q.x;
+    // imu_msg.orientation.y = q.y;
+    // imu_msg.orientation.z = q.z;
+    // imu_msg.orientation.w = q.w;
 
-    imu_msg.angular_velocity.x = ggWorld.x;
-    imu_msg.angular_velocity.y = ggWorld.y;
-    imu_msg.angular_velocity.z = ggWorld.z;
+    // imu_msg.angular_velocity.x = ggWorld.x;
+    // imu_msg.angular_velocity.y = ggWorld.y;
+    // imu_msg.angular_velocity.z = ggWorld.z;
 
-    imu_msg.linear_acceleration.x = aaWorld.x;
-    imu_msg.linear_acceleration.y = aaWorld.y;
-    imu_msg.linear_acceleration.z = aaWorld.z;
+    // imu_msg.linear_acceleration.x = aaWorld.x;
+    // imu_msg.linear_acceleration.y = aaWorld.y;
+    // imu_msg.linear_acceleration.z = aaWorld.z;
 
     encoder_msg.data.data[0] = left_encoder_value;
     encoder_msg.data.data[1] = right_encoder_value;
 
-    RCSOFTCHECK(rcl_publish(&publisher, &msg, NULL));
-    RCSOFTCHECK(rcl_publish(&imu_publisher, &imu_msg, NULL));
+    // // RCSOFTCHECK(rcl_publish(&publisher, &msg, NULL));
+    // RCSOFTCHECK(rcl_publish(&imu_publisher, &imu_msg, NULL));
     RCSOFTCHECK(rcl_publish(&encoder_publisher, &encoder_msg, NULL));
   }
 }
@@ -191,13 +191,20 @@ void subscription_callback(const void *msgin)
   // wl = (linear_vel - base_width / 2 * omega) / radius of wheel
   // wr = (linear_vel + base_width / 2 * omega) / radius of wheel
 
-  angularComponent = ((WHEEL_SEPARATION / 2) * msg->angular.z);
+  angularComponent = WHEEL_SEPARATION_BY_2 * msg->angular.z;
+
+  if (msg->linear.x == 0 && msg->angular.z == 0) {
+    analogWrite(LEFT_MOTOR_PIN1, 0);
+    analogWrite(RIGHT_MOTOR_PIN1, 0);
+    return;
+
+  }
 
   leftWheelSpeed = (msg->linear.x - angularComponent) / WHEEL_RADIUS;
   rightWheelSpeed = (msg->linear.x + angularComponent)/ WHEEL_RADIUS;
 
-  leftMotorPWM = map((int)leftWheelSpeed, -250, 250, 100, 249);
-  rightMotorPWM = map((int)rightWheelSpeed, -250, 250, 100, 249);
+  leftMotorPWM = map((int)leftWheelSpeed, -45, 45, -249, 249);
+  rightMotorPWM = map((int)rightWheelSpeed, -45, 45, -249, 249);
 
   if (leftWheelSpeed < 0){
     digitalWrite(LEFT_MOTOR_PIN2, LOW);
@@ -213,8 +220,8 @@ void subscription_callback(const void *msgin)
     digitalWrite(RIGHT_MOTOR_PIN2, HIGH);
   }
 
-  analogWrite(LEFT_MOTOR_PIN1, leftMotorPWM);
-  analogWrite(RIGHT_MOTOR_PIN1, rightMotorPWM);
+  analogWrite(LEFT_MOTOR_PIN1, abs(leftMotorPWM));
+  analogWrite(RIGHT_MOTOR_PIN1, abs(rightMotorPWM));
 }
 
 void initialize_ros_msgs()
@@ -372,41 +379,41 @@ void setup()
   delay(10);
   digitalWrite(STBY_PIN, HIGH); // HIGH to enable the motor driver
 
-#if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
-                                // Wire.begin();
-  Wire.begin(27, 26);
-  Wire.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
-#elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
-  Fastwire::setup(400, true);
-#endif
+// #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
+//                                 // Wire.begin();
+//   Wire.begin(27, 26);
+//   Wire.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
+// #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
+//   Fastwire::setup(400, true);
+// #endif
 
-  mpu.initialize();
-  devStatus = mpu.dmpInitialize();
+//   mpu.initialize();
+//   devStatus = mpu.dmpInitialize();
 
-  // supply your own gyro offsets here, scaled for min sensitivity
-  mpu.setXGyroOffset(-156);
-  mpu.setYGyroOffset(-11);
-  mpu.setZGyroOffset(-14);
-  mpu.setXAccelOffset(-3699);
-  mpu.setYAccelOffset(-2519);
-  mpu.setZAccelOffset(1391); // 1688 factory default for my test chip
+//   // supply your own gyro offsets here, scaled for min sensitivity
+//   mpu.setXGyroOffset(-156);
+//   mpu.setYGyroOffset(-11);
+//   mpu.setZGyroOffset(-14);
+//   mpu.setXAccelOffset(-3699);
+//   mpu.setYAccelOffset(-2519);
+//   mpu.setZAccelOffset(1391); // 1688 factory default for my test chip
 
-  // make sure it worked (returns 0 if so)
-  if (devStatus == 0)
-  {
+//   // make sure it worked (returns 0 if so)
+//   if (devStatus == 0)
+//   {
 
-    mpu.CalibrateAccel(6);
-    mpu.CalibrateGyro(6);
-    mpu.PrintActiveOffsets();
-    mpu.setDMPEnabled(true);
+//     mpu.CalibrateAccel(6);
+//     mpu.CalibrateGyro(6);
+//     mpu.PrintActiveOffsets();
+//     mpu.setDMPEnabled(true);
 
-    mpuIntStatus = mpu.getIntStatus();
+//     mpuIntStatus = mpu.getIntStatus();
 
-    dmpReady = true;
-    packetSize = mpu.dmpGetFIFOPacketSize();
-  }
+//     dmpReady = true;
+//     packetSize = mpu.dmpGetFIFOPacketSize();
+//   }
 
-  // Motor Driver
+//   // Motor Driver
   pinMode(LEFT_MOTOR_PIN1, OUTPUT);
   pinMode(LEFT_MOTOR_PIN2, OUTPUT);
   pinMode(RIGHT_MOTOR_PIN1, OUTPUT);
@@ -453,18 +460,18 @@ void setup()
   RCCHECK(rclc_node_init_default(&node, "micro_ros_platformio_node", "", &support));
 
   // create publisher
-  RCCHECK(rclc_publisher_init_default(
-      &publisher,
-      &node,
-      ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
-      "micro_ros_platformio_node_publisher"));
+  // RCCHECK(rclc_publisher_init_default(
+  //     &publisher,
+  //     &node,
+  //     ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
+  //     "micro_ros_platformio_node_publisher"));
 
-  // create imu publisher
-  RCCHECK(rclc_publisher_init_default(
-      &imu_publisher,
-      &node,
-      ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Imu),
-      "imu"));
+//   // create imu publisher
+//   RCCHECK(rclc_publisher_init_default(
+//       &imu_publisher,
+//       &node,
+//       ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Imu),
+//       "imu"));
 
   // create encoder publisher
   RCCHECK(rclc_publisher_init_default(
