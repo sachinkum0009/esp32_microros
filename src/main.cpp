@@ -1,6 +1,9 @@
 #include <Arduino.h>
 #include <micro_ros_platformio.h>
 // #include <micro_ros_transport.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <freertos/timers.h>
 
 #include <mutex>
 
