@@ -31,16 +31,16 @@ MPU6050 mpu;
 #define DEG_TO_RAD 0.017453292519943295769236907684886
 #define RAD_TO_DEG 57.295779513082320876798154814105
 
-#define WHEEL_RADIUS 0.035 // m
+#define WHEEL_RADIUS 0.035        // m
 #define WHEEL_SEPARATION_BY_2 0.5 // m
 
 using std::mutex;
 
 // Motor Control
-float leftWheelSpeed = 0; // rad / s
+float leftWheelSpeed = 0;  // rad / s
 float rightWheelSpeed = 0; // rad / s
-int leftMotorPWM; // pulse width in microseconds (us)
-int rightMotorPWM; // pulse width in microseconds (us)
+int leftMotorPWM;          // pulse width in microseconds (us)
+int rightMotorPWM;         // pulse width in microseconds (us)
 float angularComponent;
 
 // MPU control/status vars
@@ -195,30 +195,34 @@ void subscription_callback(const void *msgin)
 
   angularComponent = WHEEL_SEPARATION_BY_2 * msg->angular.z;
 
-  if (msg->linear.x == 0 && msg->angular.z == 0) {
+  if (msg->linear.x == 0 && msg->angular.z == 0)
+  {
     analogWrite(LEFT_MOTOR_PIN1, 0);
     analogWrite(RIGHT_MOTOR_PIN1, 0);
     return;
-
   }
 
   leftWheelSpeed = (msg->linear.x + angularComponent) / WHEEL_RADIUS;
-  rightWheelSpeed = (msg->linear.x - angularComponent)/ WHEEL_RADIUS;
+  rightWheelSpeed = (msg->linear.x - angularComponent) / WHEEL_RADIUS;
 
   leftMotorPWM = map((int)leftWheelSpeed, -45, 45, -249, 249);
   rightMotorPWM = map((int)rightWheelSpeed, -45, 45, -249, 249);
 
-  if (leftWheelSpeed > 0){
+  if (leftWheelSpeed > 0)
+  {
     digitalWrite(LEFT_MOTOR_PIN2, LOW);
   }
-  else {
+  else
+  {
     digitalWrite(LEFT_MOTOR_PIN2, HIGH);
   }
 
-  if (rightWheelSpeed > 0){
+  if (rightWheelSpeed > 0)
+  {
     digitalWrite(RIGHT_MOTOR_PIN2, LOW);
   }
-  else {
+  else
+  {
     digitalWrite(RIGHT_MOTOR_PIN2, HIGH);
   }
 
